@@ -34,6 +34,8 @@ if __name__ == "__main__":
 
 import suds
 import suds.store
+import suds.sax.parser
+from suds.sax.attribute import Attribute
 from testutils.compare_sax import CompareSAX
 
 import pytest
@@ -1086,6 +1088,44 @@ def test_wrapped_parameter(monkeypatch):
 # Test utilities.
 #
 ###############################################################################
+
+def test_parameter_xsd_anytype():
+    """
+    When using xsd:anyType, the type of the data should be defined.
+    """
+    xsd_target_namespace = "spank-me"
+    wsdl = tests.wsdl("""\
+          <xsd:element name="anyTypeRequest">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="Elemento" type="xsd:anyType"/>
+              </xsd:sequence>
+            </xsd:complexType>
+          </xsd:element>""", input="anyTypeRequest", xsd_target_namespace=xsd_target_namespace)
+    client = tests.client_from_wsdl(wsdl, nosend=True, prettyxml=True)
+
+    assert _is_input_wrapped(client, "f")
+
+    value = "Hello, world!"
+    type_ = "xsd:string"
+    expected_request = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<Envelope xmlns="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <Header/>
+  <Body>
+    <anyTypeRequest xmlns="%s">
+      <Elemento xsi:type="%s">%s</Elemento>
+    </anyTypeRequest>
+  </Body>
+</Envelope>""" % (xsd_target_namespace, type_, value)
+    actual_request = client.service.f(value)
+    _assert_request_content(actual_request, expected_request)
+
+    document = suds.sax.parser.Parser().parse(string=actual_request.envelope)
+    elemento = document._Document__root.children[1].children[0].children[0]
+    assert len(elemento.attributes) == 1
+    assert elemento.attributes[0] == Attribute('xsi:type', type_)
+
 
 def _assert_request_content(request, expected_xml):
     CompareSAX.data2data(request.envelope, expected_xml)

@@ -160,7 +160,7 @@ class Attribute(UnicodeMixin):
 
     def __eq__(self, rhs):
         """Equals operator."""
-        return (isinstance(rhs, Attribute) and self.prefix == rhs.name and
+        return (isinstance(rhs, Attribute) and self.prefix == rhs.prefix and
             self.name == rhs.name)
 
     def __repr__(self):

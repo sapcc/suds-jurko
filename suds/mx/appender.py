@@ -17,6 +17,7 @@
 """
 Provides appender classes for I{marshalling}.
 """
+from datetime import datetime
 
 from suds import *
 from suds.mx import *
@@ -24,6 +25,10 @@ from suds.sudsobject import Object, Property
 from suds.sax.element import Element
 from suds.sax.text import Text
 
+try:
+    string_type = basestring
+except NameError:
+    string_type = str
 
 class Matcher:
     """
@@ -100,6 +105,14 @@ class Appender:
         """
         self.marshaller = marshaller
 
+        self.primitives = (
+            (datetime, 'dateTime'),
+            (float, 'float'),
+            (bool, 'boolean'),
+            (int, 'double'),  # must come after bool
+            (string_type, 'string'),
+        )
+
     def node(self, content):
         """
         Create and return an XML node that is qualified
@@ -110,7 +123,17 @@ class Appender:
         @return: A new node.
         @rtype: L{Element}
         """
-        return self.marshaller.node(content)
+        node = self.marshaller.node(content)
+
+        if content.type.type == ('anyType', 'http://www.w3.org/2001/XMLSchema'):
+            for python_type, xsi_type in self.primitives:
+                if isinstance(content.value, python_type):
+                    node['xsi:type'] = 'xsd:%s' % xsi_type
+                    break
+            else:
+                raise TypeError('Could not determine type for %s' % type(content.value))
+
+        return node
 
     def setnil(self, node, content):
         """
